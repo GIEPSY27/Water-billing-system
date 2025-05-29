@@ -1,0 +1,319 @@
+import tkinter as tk
+from tkinter import messagebox
+from datetime import datetime
+
+
+class LibraryApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("📚 Library Management System")
+        self.root.geometry("1200x900")
+        self.root.configure(bg="#2C3E50")
+
+        # In-memory data storage
+        self.users = {"admin": "password"}
+        self.books = []
+        self.history = []
+        self.borrowed_books = {}  # {book_id: {"name": student_name, "id": student_id}}
+
+        self.show_login_screen()
+
+    def show_login_screen(self):
+        self.clear_window()
+        title = tk.Label(self.root, text="Library Management Login", font=("Helvetica", 24, "bold"), bg="#1ABC9C",
+                         fg="white")
+        title.pack(fill=tk.X, pady=20)
+
+        username_label = tk.Label(self.root, text="Username *", font=("Helvetica", 16, "bold"), fg="#FF9F00",
+                                  bg="#2C3E50")
+        username_label.pack(pady=10)
+        self.username_entry = tk.Entry(self.root, width=40, font=("Helvetica", 16))
+        self.username_entry.pack(pady=5)
+
+        password_label = tk.Label(self.root, text="Password *", font=("Helvetica", 16, "bold"), fg="#FF9F00",
+                                  bg="#2C3E50")
+        password_label.pack(pady=10)
+        self.password_entry = tk.Entry(self.root, width=40, show="*", font=("Helvetica", 16))
+        self.password_entry.pack(pady=5)
+
+        login_btn = tk.Button(self.root, text="Login", width=20, font=("Helvetica", 16, "bold"), bg="#2980B9",
+                              fg="white", command=self.login)
+        login_btn.pack(pady=15)
+
+        register_btn = tk.Button(self.root, text="Register New User", width=20, font=("Helvetica", 16, "bold"),
+                                 bg="#8E44AD", fg="white", command=self.show_register_screen)
+        register_btn.pack(pady=10)
+
+        exit_btn = tk.Button(self.root, text="Exit", width=20, font=("Helvetica", 16, "bold"), bg="#E74C3C", fg="white",
+                             command=self.root.quit)
+        exit_btn.pack(pady=10)
+
+    def show_register_screen(self):
+        self.clear_window()
+        title = tk.Label(self.root, text="Register New User", font=("Helvetica", 24, "bold"), bg="#8E44AD", fg="white")
+        title.pack(fill=tk.X, pady=20)
+
+        username_label = tk.Label(self.root, text="New Username *", font=("Helvetica", 16, "bold"), fg="#FF9F00",
+                                  bg="#2C3E50")
+        username_label.pack(pady=10)
+        self.new_username_entry = tk.Entry(self.root, width=40, font=("Helvetica", 16))
+        self.new_username_entry.pack(pady=5)
+
+        password_label = tk.Label(self.root, text="New Password *", font=("Helvetica", 16, "bold"), fg="#FF9F00",
+                                  bg="#2C3E50")
+        password_label.pack(pady=10)
+        self.new_password_entry = tk.Entry(self.root, width=40, show="*", font=("Helvetica", 16))
+        self.new_password_entry.pack(pady=5)
+
+        register_btn = tk.Button(self.root, text="Register", width=20, font=("Helvetica", 16, "bold"), bg="#8E44AD",
+                                 fg="white", command=self.register_user)
+        register_btn.pack(pady=15)
+
+        back_btn = tk.Button(self.root, text="Back to Login", width=20, font=("Helvetica", 16, "bold"), bg="#2980B9",
+                             fg="white", command=self.show_login_screen)
+        back_btn.pack(pady=10)
+
+    def login(self):
+        username = self.username_entry.get().strip()
+        password = self.password_entry.get().strip()
+        if username in self.users and self.users[username] == password:
+            messagebox.showinfo("Success", f"Welcome {username}!")
+            self.show_library_management_system()
+        else:
+            messagebox.showerror("Error", "Invalid username or password. Please try again.")
+
+    def register_user(self):
+        new_username = self.new_username_entry.get().strip()
+        new_password = self.new_password_entry.get().strip()
+        if new_username and new_password:
+            if new_username in self.users:
+                messagebox.showerror("Error", f"Username '{new_username}' already exists.")
+            else:
+                self.users[new_username] = new_password
+                messagebox.showinfo("Success", f"User '{new_username}' registered successfully!")
+                self.show_login_screen()
+        else:
+            messagebox.showerror("Error", "Both username and password are required.")
+
+    def show_library_management_system(self):
+        self.clear_window()
+
+        # Create Labels and Entry Widgets
+        self.create_label("Title", 0, 0)
+        self.title_entry = self.create_entry(0, 1)
+
+        self.create_label("Author", 0, 2)
+        self.author_entry = self.create_entry(0, 3)
+
+        self.create_label("Year", 1, 0)
+        self.year_entry = self.create_entry(1, 1)
+
+        self.create_label("ISBN", 1, 2)
+        self.isbn_entry = self.create_entry(1, 3)
+
+        self.create_label("Student Name", 2, 0)
+        self.student_name_entry = self.create_entry(2, 1)
+
+        self.create_label("Student ID", 2, 2)
+        self.student_id_entry = self.create_entry(2, 3)
+
+        # Search Bar
+        self.create_label("Search", 3, 0)
+        self.search_entry = tk.Entry(self.root, width=40, font=("Helvetica", 16), bg="#1ABC9C", fg="black")
+        self.search_entry.grid(row=3, column=1, columnspan=3, padx=10, pady=5)
+        self.search_entry.bind("<KeyRelease>", self.search_books)
+
+        # Action Buttons
+        self.create_button("Add Book", 4, 0, self.add_book)
+        self.create_button("Update Book", 4, 1, self.update_book)
+        self.create_button("Delete Book", 4, 2, self.delete_book)
+        self.create_button("Borrow Book", 4, 3, self.borrow_book)
+        self.create_button("Return Book", 5, 0, self.return_book)
+        self.create_button("Clear Entries", 5, 1, self.clear_entries)
+        self.create_button("Logout", 5, 2, self.show_login_screen)
+        self.create_button("Display Books", 5, 3, self.view_books)
+
+        # Clear History Button
+        clear_history_btn = tk.Button(self.root, text="Clear History", width=20, font=("Helvetica", 16, "bold"),
+                                      bg="#E74C3C", fg="white", command=self.clear_history)
+        clear_history_btn.grid(row=8, column=1, columnspan=2, padx=10, pady=10)
+
+        # Book List Display
+        self.book_listbox = tk.Listbox(self.root, width=120, height=15, bg="#34495E", fg="white")
+        self.book_listbox.grid(row=6, column=0, columnspan=4, padx=10, pady=10)
+
+        # Transaction History Display
+        self.history_listbox = tk.Listbox(self.root, width=120, height=10, bg="#2C3E50", fg="white")
+        self.history_listbox.grid(row=7, column=0, columnspan=4, padx=10, pady=10)
+
+    def create_label(self, text, row, column):
+        label = tk.Label(self.root, text=text, font=("Helvetica", 16, "bold"), bg="#2C3E50", fg="#FF9F00")
+        label.grid(row=row, column=column, padx=10, pady=5)
+
+    def create_entry(self, row, column):
+        entry = tk.Entry(self.root, width=40, font=("Helvetica", 16), bg="#34495E", fg="white")
+        entry.grid(row=row, column=column, padx=10, pady=5)
+        return entry
+
+    def create_button(self, text, row, column, command):
+        button = tk.Button(self.root, text=text, width=20, font=("Helvetica", 16, "bold"), bg="#2980B9", fg="white",
+                           command=command)
+        button.grid(row=row, column=column, padx=10, pady=10)
+
+    def add_book(self):
+        title = self.title_entry.get().strip()
+        author = self.author_entry.get().strip()
+        year = self.year_entry.get().strip()
+        isbn = self.isbn_entry.get().strip()
+        if title and author and year and isbn:
+            book_id = f"{title} | {author} | {year} | {isbn}"
+            if book_id in self.books:
+                messagebox.showerror("Error", "This book already exists in the library.")
+            else:
+                self.books.append(book_id)
+                self.books.sort()
+                self.view_books()
+                self.clear_entries()
+                messagebox.showinfo("Success", "Book added successfully!")
+        else:
+            messagebox.showerror("Error", "All fields must be filled.")
+
+    def view_books(self):
+        self.book_listbox.delete(0, tk.END)
+        for book in self.books:
+            status = " (Borrowed)" if book in self.borrowed_books else ""
+            self.book_listbox.insert(tk.END, book + status)
+
+    def update_book(self):
+        selected_book = self.book_listbox.curselection()
+        if selected_book:
+            book_details = self.books[selected_book[0]].split(" | ")
+            self.clear_entries()
+            self.title_entry.insert(0, book_details[0])
+            self.author_entry.insert(0, book_details[1])
+            self.year_entry.insert(0, book_details[2])
+            self.isbn_entry.insert(0, book_details[3])
+            self.books.remove(self.books[selected_book[0]])
+            self.view_books()
+        else:
+            messagebox.showerror("Error", "Please select a book to update.")
+
+    def delete_book(self):
+        selected_book = self.book_listbox.curselection()
+        if selected_book:
+            book_to_delete = self.books[selected_book[0]]
+            if book_to_delete in self.borrowed_books:
+                messagebox.showerror("Error", "Cannot delete a book that is currently borrowed.")
+            else:
+                self.books.pop(selected_book[0])
+                self.view_books()
+                messagebox.showinfo("Success", "Book deleted successfully.")
+        else:
+            messagebox.showerror("Error", "Please select a book to delete.")
+
+    def borrow_book(self):
+        selected_book = self.book_listbox.curselection()
+        student_name = self.student_name_entry.get().strip()
+        student_id = self.student_id_entry.get().strip()
+
+        if not selected_book:
+            messagebox.showerror("Error", "Please select a book to borrow.")
+            return
+
+        book = self.books[selected_book[0]]
+
+        if not student_name or not student_id:
+            messagebox.showerror("Error", "Please provide both student name and ID.")
+            return
+
+        if book in self.borrowed_books:
+            messagebox.showerror("Error", "This book is already borrowed by someone else.")
+            return
+
+        date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        transaction = f"Borrowed: {book} by {student_name} (ID: {student_id}) on {date}"
+        self.history.append(transaction)
+
+        self.borrowed_books[book] = {
+            "name": student_name,
+            "id": student_id
+        }
+
+        self.view_history()
+        self.view_books()
+        messagebox.showinfo("Success", f"Book borrowed successfully by {student_name}.")
+        self.clear_entries()
+
+    def return_book(self):
+        selected_book = self.book_listbox.curselection()
+        student_name = self.student_name_entry.get().strip()
+        student_id = self.student_id_entry.get().strip()
+
+        if not selected_book:
+            messagebox.showerror("Error", "Please select a book to return.")
+            return
+
+        book = self.books[selected_book[0]]
+
+        if not student_name or not student_id:
+            messagebox.showerror("Error", "Please provide both student name and ID.")
+            return
+
+        if book not in self.borrowed_books:
+            messagebox.showerror("Error", "This book is not currently borrowed.")
+            return
+
+        borrower_info = self.borrowed_books[book]
+        if (student_name.lower() != borrower_info["name"].lower() or
+                student_id != borrower_info["id"]):
+            messagebox.showerror("Error",
+                                 f"Only the original borrower can return this book.\n"
+                                 f"Borrowed by: {borrower_info['name']} (ID: {borrower_info['id']})")
+            return
+
+        date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        transaction = f"Returned: {book} by {student_name} (ID: {student_id}) on {date}"
+        self.history.append(transaction)
+
+        del self.borrowed_books[book]
+
+        self.view_history()
+        self.view_books()
+        messagebox.showinfo("Success", f"Book returned successfully by {student_name}.")
+        self.clear_entries()
+
+    def view_history(self):
+        self.history_listbox.delete(0, tk.END)
+        for transaction in self.history:
+            self.history_listbox.insert(tk.END, transaction)
+
+    def clear_history(self):
+        self.history = []
+        self.view_history()
+        messagebox.showinfo("Success", "Transaction history cleared.")
+
+    def search_books(self, event=None):
+        search_term = self.search_entry.get().lower()
+        filtered_books = [book for book in self.books if search_term in book.lower()]
+        self.book_listbox.delete(0, tk.END)
+        for book in filtered_books:
+            status = " (Borrowed)" if book in self.borrowed_books else ""
+            self.book_listbox.insert(tk.END, book + status)
+
+    def clear_entries(self):
+        self.title_entry.delete(0, tk.END)
+        self.author_entry.delete(0, tk.END)
+        self.year_entry.delete(0, tk.END)
+        self.isbn_entry.delete(0, tk.END)
+        self.student_name_entry.delete(0, tk.END)
+        self.student_id_entry.delete(0, tk.END)
+
+    def clear_window(self):
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = LibraryApp(root)
+    root.mainloop()
