@@ -1,322 +1,544 @@
-# Water-billing-system
-A Tkinter - based Water Billing System with login, analytics, and receipt generation
 import tkinter as tk
-from tkinter import messagebox
-from datetime import datetime
+from tkinter import ttk, messagebox, filedialog
+import datetime
+import os
+import json
+import tempfile
+import webbrowser
+
+# File to store user credentials
+USER_FILE = "users.json"
+
+# Load users
+if os.path.exists(USER_FILE):
+    with open(USER_FILE, 'r') as f:
+        users = json.load(f)
+else:
+    users = {"admin": {"password": "admin123", "role": "admin"}}
+
+# Save users
+with open(USER_FILE, 'w') as f:
+    json.dump(users, f)
+
+# Global Variables
+customer_details = {}
+current_bill = 0
+water_arrears = 0
+total_due = 0
+total_after_due = 0
+payment_due_date = ""
+disconnection_due_date = ""
+transaction_history = []
+total_revenue = 0
+average_consumption = 0
+transaction_count = 0
+current_payment = 0
+current_balance = 0
+current_status = ""
+
+# App Window
+root = tk.Tk()
+root.title("Water Billing System")
+root.geometry("1000x700")
+root.configure(bg="white")
+root.resizable(False, False)
+
+# Frames
+login_frame = tk.Frame(root, bg="white")
+register_frame = tk.Frame(root, bg="white")
+billing_frame = tk.Frame(root, bg="white")
+for frame in (login_frame, register_frame, billing_frame):
+    frame.place(x=0, y=0, width=1000, height=700)
 
 
-class LibraryApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("📚 Library Management System")
-        self.root.geometry("1200x900")
-        self.root.configure(bg="#2C3E50")
+# Switch Frames
+def raise_frame(frame):
+    frame.tkraise()
 
-        # In-memory data storage
-        self.users = {"admin": "password"}
-        self.books = []
-        self.history = []
-        self.borrowed_books = {}  # {book_id: {"name": student_name, "id": student_id}}
 
-        self.show_login_screen()
+# Login Logic
+def login():
+    username = username_entry.get()
+    password = password_entry.get()
+    if username in users and users[username]["password"] == password:
+        global current_user
+        current_user = username
+        role = users[username]["role"]
+        welcome_label.config(text=f"Welcome, {username.title()}! Role: {role.title()}")
+        raise_frame(billing_frame)
+    else:
+        messagebox.showerror("Login Failed", "Invalid credentials")
 
-    def show_login_screen(self):
-        self.clear_window()
-        title = tk.Label(self.root, text="Library Management Login", font=("Helvetica", 24, "bold"), bg="#1ABC9C",
-                         fg="white")
-        title.pack(fill=tk.X, pady=20)
 
-        username_label = tk.Label(self.root, text="Username *", font=("Helvetica", 16, "bold"), fg="#FF9F00",
-                                  bg="#2C3E50")
-        username_label.pack(pady=10)
-        self.username_entry = tk.Entry(self.root, width=40, font=("Helvetica", 16))
-        self.username_entry.pack(pady=5)
+# Register Logic
+def register():
+    username = reg_username_entry.get()
+    password = reg_password_entry.get()
+    if username in users:
+        messagebox.showerror("Error", "Username already exists")
+    else:
+        users[username] = {"password": password, "role": "user"}
+        with open(USER_FILE, 'w') as f:
+            json.dump(users, f)
+        messagebox.showinfo("Success", "Registration successful")
+        raise_frame(login_frame)
 
-        password_label = tk.Label(self.root, text="Password *", font=("Helvetica", 16, "bold"), fg="#FF9F00",
-                                  bg="#2C3E50")
-        password_label.pack(pady=10)
-        self.password_entry = tk.Entry(self.root, width=40, show="*", font=("Helvetica", 16))
-        self.password_entry.pack(pady=5)
 
-        login_btn = tk.Button(self.root, text="Login", width=20, font=("Helvetica", 16, "bold"), bg="#2980B9",
-                              fg="white", command=self.login)
-        login_btn.pack(pady=15)
+# Delete User
+def delete_user():
+    if users[current_user]['role'] != 'admin':
+        messagebox.showerror("Permission Denied", "Only admin can delete users")
+        return
+    username = delete_user_entry.get()
+    if username == "admin":
+        messagebox.showerror("Error", "Cannot delete admin account")
+    elif username in users:
+        del users[username]
+        with open(USER_FILE, 'w') as f:
+            json.dump(users, f)
+        messagebox.showinfo("Deleted", f"User '{username}' deleted successfully")
+    else:
+        messagebox.showerror("Error", "User not found")
 
-        register_btn = tk.Button(self.root, text="Register New User", width=20, font=("Helvetica", 16, "bold"),
-                                 bg="#8E44AD", fg="white", command=self.show_register_screen)
-        register_btn.pack(pady=10)
 
-        exit_btn = tk.Button(self.root, text="Exit", width=20, font=("Helvetica", 16, "bold"), bg="#E74C3C", fg="white",
-                             command=self.root.quit)
-        exit_btn.pack(pady=10)
+# Login GUI
+login_title = tk.Label(login_frame, text="Login", font=("Arial", 24), bg="white")
+login_title.pack(pady=20)
+username_label = tk.Label(login_frame, text="Username:", font=("Arial", 14), bg="white")
+username_label.pack()
+username_entry = tk.Entry(login_frame, font=("Arial", 14))
+username_entry.pack(pady=5)
+password_label = tk.Label(login_frame, text="Password:", font=("Arial", 14), bg="white")
+password_label.pack()
+password_entry = tk.Entry(login_frame, font=("Arial", 14), show='*')
+password_entry.pack(pady=5)
+login_button = tk.Button(login_frame, text="Login", font=("Arial", 14), bg="#007bff", fg="white", command=login)
+login_button.pack(pady=10)
+register_link = tk.Button(login_frame, text="Register", font=("Arial", 12), fg="#007bff", bg="white",
+                          command=lambda: raise_frame(register_frame))
+register_link.pack()
 
-    def show_register_screen(self):
-        self.clear_window()
-        title = tk.Label(self.root, text="Register New User", font=("Helvetica", 24, "bold"), bg="#8E44AD", fg="white")
-        title.pack(fill=tk.X, pady=20)
+# Registration GUI
+tk.Label(register_frame, text="Register", font=("Arial", 24), bg="white").pack(pady=20)
+tk.Label(register_frame, text="Username:", font=("Arial", 14), bg="white").pack()
+reg_username_entry = tk.Entry(register_frame, font=("Arial", 14))
+reg_username_entry.pack(pady=5)
+tk.Label(register_frame, text="Password:", font=("Arial", 14), bg="white").pack()
+reg_password_entry = tk.Entry(register_frame, font=("Arial", 14), show='*')
+reg_password_entry.pack(pady=5)
+tk.Button(register_frame, text="Register", font=("Arial", 14), bg="#28a745", fg="white", command=register).pack(pady=10)
+tk.Button(register_frame, text="Back to Login", font=("Arial", 12), fg="#007bff", bg="white",
+          command=lambda: raise_frame(login_frame)).pack()
 
-        username_label = tk.Label(self.root, text="New Username *", font=("Helvetica", 16, "bold"), fg="#FF9F00",
-                                  bg="#2C3E50")
-        username_label.pack(pady=10)
-        self.new_username_entry = tk.Entry(self.root, width=40, font=("Helvetica", 16))
-        self.new_username_entry.pack(pady=5)
+# Billing Frame
+delete_user_entry = tk.Entry(billing_frame)
+delete_user_entry.pack(pady=5)
+delete_user_button = tk.Button(billing_frame, text="Delete User (Admin Only)", command=delete_user, bg="red",
+                               fg="white")
+delete_user_button.pack(pady=5)
+welcome_label = tk.Label(billing_frame, text="", font=("Arial", 14), bg="white")
+welcome_label.pack(pady=10)
 
-        password_label = tk.Label(self.root, text="New Password *", font=("Helvetica", 16, "bold"), fg="#FF9F00",
-                                  bg="#2C3E50")
-        password_label.pack(pady=10)
-        self.new_password_entry = tk.Entry(self.root, width=40, show="*", font=("Helvetica", 16))
-        self.new_password_entry.pack(pady=5)
+# Tabs
+tabs = ttk.Notebook(billing_frame)
+tab1 = ttk.Frame(tabs);
+tab2 = ttk.Frame(tabs);
+tab3 = ttk.Frame(tabs)
+tab4 = ttk.Frame(tabs);
+tab5 = ttk.Frame(tabs);
+tab6 = ttk.Frame(tabs)
+tabs.add(tab1, text="Billing");
+tabs.add(tab2, text="Payment")
+tabs.add(tab3, text="History");
+tabs.add(tab4, text="Analytics")
+tabs.add(tab5, text="Summary");
+tabs.add(tab6, text="Receipt")
+tabs.pack(expand=1, fill='both')
 
-        register_btn = tk.Button(self.root, text="Register", width=20, font=("Helvetica", 16, "bold"), bg="#8E44AD",
-                                 fg="white", command=self.register_user)
-        register_btn.pack(pady=15)
+# Billing Entry Fields
+entries = []
+labels = ["Customer Code:", "Name:", "Address:", "Block and Lot No:", "Consumption (cu.m):"]
+for i, lbl in enumerate(labels):
+    l = tk.Label(tab1, text=lbl, font=("Arial", 12))
+    l.grid(row=i, column=0, sticky="w", padx=10, pady=5)
+    e = tk.Entry(tab1)
+    e.grid(row=i, column=1, padx=10)
+    entries.append(e)
 
-        back_btn = tk.Button(self.root, text="Back to Login", width=20, font=("Helvetica", 16, "bold"), bg="#2980B9",
-                             fg="white", command=self.show_login_screen)
-        back_btn.pack(pady=10)
+# Search Customer
+search_entry = tk.Entry(tab1)
+search_entry.grid(row=6, column=0, padx=10, pady=5)
+tk.Button(tab1, text="Search by Code", bg="#ffc107", command=lambda: search_customer(search_entry.get())).grid(row=6,
+                                                                                                               column=1)
 
-    def login(self):
-        username = self.username_entry.get().strip()
-        password = self.password_entry.get().strip()
-        if username in self.users and self.users[username] == password:
-            messagebox.showinfo("Success", f"Welcome {username}!")
-            self.show_library_management_system()
+
+def search_customer(code):
+    for t in transaction_history:
+        if t['code'] == code:
+            messagebox.showinfo("Found", f"Name: {t['name']}\nTotal: ₱{t['total']:.2f}")
+            return
+    messagebox.showerror("Not Found", "Customer code not found")
+
+
+def update_summary():
+    global water_arrears, total_due, total_after_due, payment_due_date, disconnection_due_date
+    water_arrears = current_bill * 0.10
+    total_due = current_bill + water_arrears
+    total_after_due = total_due * 1.05
+    payment_due_date = (datetime.datetime.now() + datetime.timedelta(days=30)).strftime("%Y-%m-%d")
+    disconnection_due_date = (datetime.datetime.now() + datetime.timedelta(days=60)).strftime("%Y-%m-%d")
+    billing_summary_text.config(state='normal')
+    billing_summary_text.delete(1.0, tk.END)
+    billing_summary_text.insert(tk.END, f"Current Bill: ₱{current_bill:.2f}\n")
+    billing_summary_text.insert(tk.END, f"Arrears: ₱{water_arrears:.2f}\n")
+    billing_summary_text.insert(tk.END, f"Total Due: ₱{total_due:.2f}\n")
+    billing_summary_text.insert(tk.END, f"After Due: ₱{total_after_due:.2f}\n")
+    billing_summary_text.insert(tk.END, f"Due Date: {payment_due_date}\n")
+    billing_summary_text.insert(tk.END, f"Disconnection: {disconnection_due_date}\n")
+    billing_summary_text.config(state='disabled')
+
+
+# Calculation Logic
+def calculate_bill():
+    try:
+        code, name, project, block, cons = [e.get() for e in entries]
+        cons = float(cons)
+        global current_bill
+        if cons <= 10:
+            bill = cons * 30
+        elif cons <= 20:
+            bill = 10 * 30 + (cons - 10) * 35
+        elif cons <= 30:
+            bill = 10 * 30 + 10 * 35 + (cons - 20) * 40
         else:
-            messagebox.showerror("Error", "Invalid username or password. Please try again.")
+            bill = 10 * 30 + 10 * 35 + 10 * 40 + (cons - 30) * 50
+        env_fee = bill * 0.10
+        vat = bill * 0.12
+        current_bill = bill + env_fee + vat + 50
+        customer_details.update(
+            {"code": code, "name": name, "project": project, "block": block, "cons": cons, "total": current_bill})
+        update_summary()
+        messagebox.showinfo("Bill Calculated", f"Total: ₱{current_bill:.2f}")
+    except:
+        messagebox.showerror("Invalid", "Please check your inputs.")
 
-    def register_user(self):
-        new_username = self.new_username_entry.get().strip()
-        new_password = self.new_password_entry.get().strip()
-        if new_username and new_password:
-            if new_username in self.users:
-                messagebox.showerror("Error", f"Username '{new_username}' already exists.")
-            else:
-                self.users[new_username] = new_password
-                messagebox.showinfo("Success", f"User '{new_username}' registered successfully!")
-                self.show_login_screen()
+
+tk.Button(tab1, text="Calculate", bg="#007bff", fg="white", command=calculate_bill).grid(row=5, column=0, columnspan=2,
+                                                                                         pady=10)
+
+# Payment Tab
+payment_entry = tk.Entry(tab2)
+tk.Label(tab2, text="Enter Payment").pack()
+payment_entry.pack(pady=10)
+
+
+def generate_receipt(paid, bal, status):
+    global current_payment, current_balance, current_status
+    current_payment = paid
+    current_balance = bal
+    current_status = status
+
+    receipt_text.config(state='normal')
+    receipt_text.delete(1.0, tk.END)
+
+    # Enhanced receipt format with proper header and sections
+    receipt_text.insert(tk.END, "=" * 60 + "\n")
+    receipt_text.insert(tk.END, "AQUA WATER UTILITIES COMPANY, INC.\n")
+    receipt_text.insert(tk.END, "Corrales Ave, Cagayan de Oro, 9000 Misamis Oriental\n")
+    receipt_text.insert(tk.END, "Tel: +6392-992-2137 | Email: billing@aquawater.com\n")
+    receipt_text.insert(tk.END, "=" * 60 + "\n\n")
+
+    receipt_text.insert(tk.END, "OFFICIAL PAYMENT RECEIPT\n")
+    receipt_text.insert(tk.END, "-" * 30 + "\n\n")
+
+    receipt_text.insert(tk.END, "CUSTOMER INFORMATION\n")
+    receipt_text.insert(tk.END, "-" * 30 + "\n")
+    receipt_text.insert(tk.END, f"Receipt No: {datetime.datetime.now().strftime('%Y%m%d%H%M%S')}\n")
+    receipt_text.insert(tk.END, f"Date: {datetime.datetime.now().strftime('%B %d, %Y - %I:%M:%S %p')}\n")
+    receipt_text.insert(tk.END, f"Customer Code: {customer_details['code']}\n")
+    receipt_text.insert(tk.END, f"Name: {customer_details['name']}\n")
+    receipt_text.insert(tk.END,
+                        f"Service Address: {customer_details['project']}, Block & Lot: {customer_details['block']}\n\n")
+
+    receipt_text.insert(tk.END, "BILLING DETAILS\n")
+    receipt_text.insert(tk.END, "-" * 30 + "\n")
+    receipt_text.insert(tk.END, f"Consumption: {customer_details['cons']} cu.m\n")
+    receipt_text.insert(tk.END,
+                        f"Water Charges: ₱{current_bill - (current_bill * 0.12) - (current_bill * 0.10) - 50:.2f}\n")
+    receipt_text.insert(tk.END, f"Environmental Fee (10%): ₱{current_bill * 0.10:.2f}\n")
+    receipt_text.insert(tk.END, f"VAT (12%): ₱{current_bill * 0.12:.2f}\n")
+    receipt_text.insert(tk.END, f"Other Charges: ₱50.00\n")
+    receipt_text.insert(tk.END, f"Current Bill: ₱{current_bill:.2f}\n")
+    receipt_text.insert(tk.END, f"Arrears: ₱{water_arrears:.2f}\n")
+    receipt_text.insert(tk.END, f"Total Amount Due: ₱{total_due:.2f}\n\n")
+
+    receipt_text.insert(tk.END, "PAYMENT INFORMATION\n")
+    receipt_text.insert(tk.END, "-" * 30 + "\n")
+    receipt_text.insert(tk.END, f"Amount Paid: ₱{paid:.2f}\n")
+    receipt_text.insert(tk.END, f"Balance: ₱{bal:.2f}\n")
+    receipt_text.insert(tk.END, f"Payment Status: {status}\n\n")
+
+    receipt_text.insert(tk.END, "IMPORTANT DATES\n")
+    receipt_text.insert(tk.END, "-" * 30 + "\n")
+    receipt_text.insert(tk.END, f"Due Date: {payment_due_date}\n")
+    receipt_text.insert(tk.END, f"Disconnection Date: {disconnection_due_date}\n\n")
+
+    receipt_text.insert(tk.END, "=" * 60 + "\n")
+    receipt_text.insert(tk.END, "Thank you for your payment!\n")
+    receipt_text.insert(tk.END, "For billing inquiries, please contact our Customer Service.\n")
+    receipt_text.insert(tk.END, "This is a computer-generated receipt. No signature required.\n")
+    receipt_text.insert(tk.END, "=" * 60)
+
+    receipt_text.config(state='disabled')
+
+
+def pay():
+    try:
+        paid = float(payment_entry.get())
+        bal = customer_details['total'] - paid
+        status = "Paid" if bal <= 0 else "Partial Payment"
+
+        if bal > 0:
+            messagebox.showinfo("Lacking Payment",
+                                f"Payment is lacking by ₱{bal:.2f}\nPlease add more payment to complete the transaction.")
         else:
-            messagebox.showerror("Error", "Both username and password are required.")
-
-    def show_library_management_system(self):
-        self.clear_window()
-
-        # Create Labels and Entry Widgets
-        self.create_label("Title", 0, 0)
-        self.title_entry = self.create_entry(0, 1)
-
-        self.create_label("Author", 0, 2)
-        self.author_entry = self.create_entry(0, 3)
-
-        self.create_label("Year", 1, 0)
-        self.year_entry = self.create_entry(1, 1)
-
-        self.create_label("ISBN", 1, 2)
-        self.isbn_entry = self.create_entry(1, 3)
-
-        self.create_label("Student Name", 2, 0)
-        self.student_name_entry = self.create_entry(2, 1)
-
-        self.create_label("Student ID", 2, 2)
-        self.student_id_entry = self.create_entry(2, 3)
-
-        # Search Bar
-        self.create_label("Search", 3, 0)
-        self.search_entry = tk.Entry(self.root, width=40, font=("Helvetica", 16), bg="#1ABC9C", fg="black")
-        self.search_entry.grid(row=3, column=1, columnspan=3, padx=10, pady=5)
-        self.search_entry.bind("<KeyRelease>", self.search_books)
-
-        # Action Buttons
-        self.create_button("Add Book", 4, 0, self.add_book)
-        self.create_button("Update Book", 4, 1, self.update_book)
-        self.create_button("Delete Book", 4, 2, self.delete_book)
-        self.create_button("Borrow Book", 4, 3, self.borrow_book)
-        self.create_button("Return Book", 5, 0, self.return_book)
-        self.create_button("Clear Entries", 5, 1, self.clear_entries)
-        self.create_button("Logout", 5, 2, self.show_login_screen)
-        self.create_button("Display Books", 5, 3, self.view_books)
-
-        # Clear History Button
-        clear_history_btn = tk.Button(self.root, text="Clear History", width=20, font=("Helvetica", 16, "bold"),
-                                      bg="#E74C3C", fg="white", command=self.clear_history)
-        clear_history_btn.grid(row=8, column=1, columnspan=2, padx=10, pady=10)
-
-        # Book List Display
-        self.book_listbox = tk.Listbox(self.root, width=120, height=15, bg="#34495E", fg="white")
-        self.book_listbox.grid(row=6, column=0, columnspan=4, padx=10, pady=10)
-
-        # Transaction History Display
-        self.history_listbox = tk.Listbox(self.root, width=120, height=10, bg="#2C3E50", fg="white")
-        self.history_listbox.grid(row=7, column=0, columnspan=4, padx=10, pady=10)
-
-    def create_label(self, text, row, column):
-        label = tk.Label(self.root, text=text, font=("Helvetica", 16, "bold"), bg="#2C3E50", fg="#FF9F00")
-        label.grid(row=row, column=column, padx=10, pady=5)
-
-    def create_entry(self, row, column):
-        entry = tk.Entry(self.root, width=40, font=("Helvetica", 16), bg="#34495E", fg="white")
-        entry.grid(row=row, column=column, padx=10, pady=5)
-        return entry
-
-    def create_button(self, text, row, column, command):
-        button = tk.Button(self.root, text=text, width=20, font=("Helvetica", 16, "bold"), bg="#2980B9", fg="white",
-                           command=command)
-        button.grid(row=row, column=column, padx=10, pady=10)
-
-    def add_book(self):
-        title = self.title_entry.get().strip()
-        author = self.author_entry.get().strip()
-        year = self.year_entry.get().strip()
-        isbn = self.isbn_entry.get().strip()
-        if title and author and year and isbn:
-            book_id = f"{title} | {author} | {year} | {isbn}"
-            if book_id in self.books:
-                messagebox.showerror("Error", "This book already exists in the library.")
-            else:
-                self.books.append(book_id)
-                self.books.sort()
-                self.view_books()
-                self.clear_entries()
-                messagebox.showinfo("Success", "Book added successfully!")
-        else:
-            messagebox.showerror("Error", "All fields must be filled.")
-
-    def view_books(self):
-        self.book_listbox.delete(0, tk.END)
-        for book in self.books:
-            status = " (Borrowed)" if book in self.borrowed_books else ""
-            self.book_listbox.insert(tk.END, book + status)
-
-    def update_book(self):
-        selected_book = self.book_listbox.curselection()
-        if selected_book:
-            book_details = self.books[selected_book[0]].split(" | ")
-            self.clear_entries()
-            self.title_entry.insert(0, book_details[0])
-            self.author_entry.insert(0, book_details[1])
-            self.year_entry.insert(0, book_details[2])
-            self.isbn_entry.insert(0, book_details[3])
-            self.books.remove(self.books[selected_book[0]])
-            self.view_books()
-        else:
-            messagebox.showerror("Error", "Please select a book to update.")
-
-    def delete_book(self):
-        selected_book = self.book_listbox.curselection()
-        if selected_book:
-            book_to_delete = self.books[selected_book[0]]
-            if book_to_delete in self.borrowed_books:
-                messagebox.showerror("Error", "Cannot delete a book that is currently borrowed.")
-            else:
-                self.books.pop(selected_book[0])
-                self.view_books()
-                messagebox.showinfo("Success", "Book deleted successfully.")
-        else:
-            messagebox.showerror("Error", "Please select a book to delete.")
-
-    def borrow_book(self):
-        selected_book = self.book_listbox.curselection()
-        student_name = self.student_name_entry.get().strip()
-        student_id = self.student_id_entry.get().strip()
-
-        if not selected_book:
-            messagebox.showerror("Error", "Please select a book to borrow.")
-            return
-
-        book = self.books[selected_book[0]]
-
-        if not student_name or not student_id:
-            messagebox.showerror("Error", "Please provide both student name and ID.")
-            return
-
-        if book in self.borrowed_books:
-            messagebox.showerror("Error", "This book is already borrowed by someone else.")
-            return
-
-        date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        transaction = f"Borrowed: {book} by {student_name} (ID: {student_id}) on {date}"
-        self.history.append(transaction)
-
-        self.borrowed_books[book] = {
-            "name": student_name,
-            "id": student_id
-        }
-
-        self.view_history()
-        self.view_books()
-        messagebox.showinfo("Success", f"Book borrowed successfully by {student_name}.")
-        self.clear_entries()
-
-    def return_book(self):
-        selected_book = self.book_listbox.curselection()
-        student_name = self.student_name_entry.get().strip()
-        student_id = self.student_id_entry.get().strip()
-
-        if not selected_book:
-            messagebox.showerror("Error", "Please select a book to return.")
-            return
-
-        book = self.books[selected_book[0]]
-
-        if not student_name or not student_id:
-            messagebox.showerror("Error", "Please provide both student name and ID.")
-            return
-
-        if book not in self.borrowed_books:
-            messagebox.showerror("Error", "This book is not currently borrowed.")
-            return
-
-        borrower_info = self.borrowed_books[book]
-        if (student_name.lower() != borrower_info["name"].lower() or
-                student_id != borrower_info["id"]):
-            messagebox.showerror("Error",
-                                 f"Only the original borrower can return this book.\n"
-                                 f"Borrowed by: {borrower_info['name']} (ID: {borrower_info['id']})")
-            return
-
-        date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        transaction = f"Returned: {book} by {student_name} (ID: {student_id}) on {date}"
-        self.history.append(transaction)
-
-        del self.borrowed_books[book]
-
-        self.view_history()
-        self.view_books()
-        messagebox.showinfo("Success", f"Book returned successfully by {student_name}.")
-        self.clear_entries()
-
-    def view_history(self):
-        self.history_listbox.delete(0, tk.END)
-        for transaction in self.history:
-            self.history_listbox.insert(tk.END, transaction)
-
-    def clear_history(self):
-        self.history = []
-        self.view_history()
-        messagebox.showinfo("Success", "Transaction history cleared.")
-
-    def search_books(self, event=None):
-        search_term = self.search_entry.get().lower()
-        filtered_books = [book for book in self.books if search_term in book.lower()]
-        self.book_listbox.delete(0, tk.END)
-        for book in filtered_books:
-            status = " (Borrowed)" if book in self.borrowed_books else ""
-            self.book_listbox.insert(tk.END, book + status)
-
-    def clear_entries(self):
-        self.title_entry.delete(0, tk.END)
-        self.author_entry.delete(0, tk.END)
-        self.year_entry.delete(0, tk.END)
-        self.isbn_entry.delete(0, tk.END)
-        self.student_name_entry.delete(0, tk.END)
-        self.student_id_entry.delete(0, tk.END)
-
-    def clear_window(self):
-        for widget in self.root.winfo_children():
-            widget.destroy()
+            messagebox.showinfo("Status", f"{status}. Change: ₱{abs(bal) if bal < 0 else 0:.2f}")
+        global total_revenue, transaction_count
+        total_revenue += customer_details['total']
+        transaction_count += 1
+        average = total_revenue / transaction_count
+        analytics_text.config(state='normal')
+        analytics_text.delete(1.0, tk.END)
+        analytics_text.insert(tk.END,
+                              f"Revenue: ₱{total_revenue:.2f}\nAverage: ₱{average:.2f}\nCount: {transaction_count}")
+        analytics_text.config(state='disabled')
+        transaction_history.append(customer_details.copy())
+        generate_receipt(paid, max(bal, 0), status)
+    except:
+        messagebox.showerror("Error", "Enter valid payment")
 
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = LibraryApp(root)
-    root.mainloop()
-    
+tk.Button(tab2, text="Submit Payment", bg="#007bff", fg="white", command=pay).pack()
+
+# History Tab
+history_text = tk.Text(tab3, height=20, width=70)
+history_text.pack()
+
+
+def show_history():
+    history_text.delete(1.0, tk.END)
+    for t in transaction_history:
+        history_text.insert(tk.END, f"Code: {t['code']} | Name: {t['name']} | Total: ₱{t['total']:.2f}\n")
+
+
+def export_history():
+    filename = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text files", "*.txt")])
+    if filename:
+        with open(filename, 'w') as f:
+            for t in transaction_history:
+                f.write(f"Code: {t['code']} | Name: {t['name']} | Total: ₱{t['total']:.2f}\n")
+        messagebox.showinfo("Exported", "History exported successfully")
+
+
+show_history_btn = tk.Button(tab3, text="Show History", bg="#007bff", fg="white", command=show_history)
+show_history_btn.pack()
+tk.Button(tab3, text="Export History", bg="#28a745", fg="white", command=export_history).pack(pady=5)
+
+# Analytics and Summary
+analytics_text = tk.Text(tab4, state='disabled', height=10)
+analytics_text.pack(pady=10)
+billing_summary_text = tk.Text(tab5, state='disabled', height=10)
+billing_summary_text.pack(pady=10)
+
+# Receipt Tab
+receipt_text = tk.Text(tab6, state='disabled', height=20, width=70)
+receipt_text.pack(pady=10)
+
+
+def print_receipt():
+    receipt = receipt_text.get(1.0, tk.END)
+    if not receipt.strip():
+        messagebox.showerror("Error", "No receipt to print.")
+        return
+
+    # Create a HTML version of the receipt for better printing
+    html_receipt = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Water Billing Receipt</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }}
+        .receipt {{
+            width: 80%;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+        }}
+        .header {{
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }}
+        .title {{
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin: 15px 0;
+        }}
+        .section {{
+            margin-bottom: 20px;
+        }}
+        .section-title {{
+            font-weight: bold;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 10px;
+        }}
+        .row {{
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }}
+        .footer {{
+            text-align: center;
+            margin-top: 30px;
+            font-size: 14px;
+            border-top: 2px solid #000;
+            padding-top: 10px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="receipt">
+        <div class="header">
+            <h1>AQUA WATER UTILITIES COMPANY, INC.</h1>
+            <p>Corrales Ave, Cagayan de Oro, 9000 Misamis Oriental</p>
+            <p>Tel: +6392-992-2137 | Email: billing@aquawater.com</p>
+        </div>
+
+        <div class="title">OFFICIAL PAYMENT RECEIPT</div>
+
+        <div class="section">
+            <div class="section-title">CUSTOMER INFORMATION</div>
+            <p>Receipt No: {datetime.datetime.now().strftime('%Y%m%d%H%M%S')}</p>
+            <p>Date: {datetime.datetime.now().strftime('%B %d, %Y - %I:%M:%S %p')}</p>
+            <p>Customer Code: {customer_details.get('code', 'N/A')}</p>
+            <p>Name: {customer_details.get('name', 'N/A')}</p>
+            <p>Service Address: {customer_details.get('project', 'N/A')}, Block & Lot: {customer_details.get('block', 'N/A')}</p>
+        </div>
+
+        <div class="section">
+            <div class="section-title">BILLING DETAILS</div>
+            <div class="row">
+                <span>Consumption:</span>
+                <span>{customer_details.get('cons', 0)} cu.m</span>
+            </div>
+            <div class="row">
+                <span>Water Charges:</span>
+                <span>₱{current_bill - (current_bill * 0.12) - (current_bill * 0.10) - 50:.2f}</span>
+            </div>
+            <div class="row">
+                <span>Environmental Fee (10%):</span>
+                <span>₱{current_bill * 0.10:.2f}</span>
+            </div>
+            <div class="row">
+                <span>VAT (12%):</span>
+                <span>₱{current_bill * 0.12:.2f}</span>
+            </div>
+            <div class="row">
+                <span>Other Charges:</span>
+                <span>₱50.00</span>
+            </div>
+            <div class="row">
+                <span>Current Bill:</span>
+                <span>₱{current_bill:.2f}</span>
+            </div>
+            <div class="row">
+                <span>Arrears:</span>
+                <span>₱{water_arrears:.2f}</span>
+            </div>
+            <div class="row">
+                <span>Total Amount Due:</span>
+                <span>₱{total_due:.2f}</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">PAYMENT INFORMATION</div>
+            <div class="row">
+                <span>Amount Paid:</span>
+                <span>₱{current_payment:.2f}</span>
+            </div>
+            <div class="row">
+                <span>Balance:</span>
+                <span>₱{current_balance:.2f}</span>
+            </div>
+            <div class="row">
+                <span>Payment Status:</span>
+                <span>{current_status}</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">IMPORTANT DATES</div>
+            <div class="row">
+                <span>Due Date:</span>
+                <span>{payment_due_date}</span>
+            </div>
+            <div class="row">
+                <span>Disconnection Date:</span>
+                <span>{disconnection_due_date}</span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Thank you for your payment!</p>
+            <p>For billing inquiries, please contact our Customer Service.</p>
+            <p>This is a computer-generated receipt. No signature required.</p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    # Save HTML to temporary file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".html", mode='w', encoding='utf-8') as temp:
+        temp.write(html_receipt)
+        temp_path = temp.name
+
+    # Open HTML file in default browser for printing
+    try:
+        webbrowser.open('file://' + temp_path)
+        messagebox.showinfo("Print", "Receipt opened in browser for printing")
+    except Exception as e:
+        # Fallback to plain text if browser opening fails
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode='w', encoding='utf-8') as temp:
+            temp.write(receipt)
+            temp_path = temp.name
+        try:
+            os.startfile(temp_path, "print")  # Windows
+        except Exception as e:
+            messagebox.showerror("Print Error", f"Could not print receipt:\n{str(e)}")
+
+
+print_button = tk.Button(tab6, text="Print Receipt", bg="#007bff", fg="white", command=print_receipt)
+print_button.pack(pady=5)
+
+
+# Logout functionality
+def logout():
+    raise_frame(login_frame)
+    username_entry.delete(0, tk.END)
+    password_entry.delete(0, tk.END)
+
+
+logout_button = tk.Button(billing_frame, text="Logout", bg="#dc3545", fg="white", command=logout)
+logout_button.pack(side=tk.BOTTOM, pady=10)
+
+# Start App
+raise_frame(login_frame)
+root.mainloop()
